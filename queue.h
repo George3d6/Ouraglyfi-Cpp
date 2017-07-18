@@ -44,6 +44,8 @@ std::vector<T*> transition;
 std::vector<Buffer> pool;
 
 LockFreeQueue() {
+        pool.reserve(100000);
+        transition.reserve(100000);
         for(auto n = 0; n < pool_size; n++) {
                 pool.emplace_back(Buffer{});
         }
@@ -70,16 +72,16 @@ bool try_enqueue(T obj) {
                 for(auto& buffer: pool) {
                         int buffer_state_ready_compare = buffer_state_ready;
                         if(buffer.state.compare_exchange_strong(buffer_state_ready_compare, buffer_state_used)) {
-                                transition.emplace_back(std::move(in));
+                                transition.push_back(std::move(in));
                                 in = buffer.buffer;
                                 in_position = -1;
                                 found_buffer = true;
-                                pool.emplace_back(Buffer{});
+                                pool.push_back(Buffer{});
                         }
                 }
                 if(!found_buffer) {
-                    pool.emplace_back(Buffer{});
-                    transition.emplace_back(std::move(in));
+                    pool.push_back(Buffer{});
+                    transition.push_back(std::move(in));
                     in = pool.end()->buffer;
                     in_position = -1;
                 }
@@ -95,7 +97,7 @@ bool try_dequeue(T*& item) {
         auto index = out_position.fetch_add(1);
         //Check the item in the transition blocks based on the index, the index / 100 is the index of the block, % 100 is the pos in the block
         const size_t first_access = index/100;
-        if(first_access >= transition.size()) {
+        if(first_access > transition.size()) {
             return false;
         }
         const size_t second_access = index%100;
