@@ -84,7 +84,6 @@ public:
         */
         //auto buffer_nr_should_be = std::floor(in_position/buffer_size);
         //insertion_buffer.nr.compare_exchange_strong(insertion_buffer_nr, buffer_nr_should_be);
-        return false;
     }
 
     void dequeue(T*& item) {
