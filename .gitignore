@@ -1,3 +1,7 @@
 CMakeLists.txt.user
 bin
 build
+queue_two.h
+queue.h
+mcmp_fixed_queue.h
+scsp_fixed_queue.h
