@@ -71,12 +71,7 @@ namespace ouraglyfi
         inline size_t next_position_in_buffer(size_t pos) const noexcept {
             return pos == (internal_capacity - 1) ? 0 : (pos + 1);
         }
-
-        inline size_t previous_position_in_buffer(size_t pos) const noexcept {
-            return pos == 0 ? (internal_capacity - 1) : (pos - 1);
-        }
-
-        //
+        
         std::vector<T> buffer;
 
         //Used internally for synchronization, user can't influence these at construction

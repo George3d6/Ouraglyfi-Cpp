@@ -56,6 +56,7 @@ public:
     };
 };
 
+
 std::atomic<uint64_t> TestValue::move_count = 0;
 std::atomic<uint64_t> TestValue::copy_count = 0;
 std::atomic<uint64_t> TestValue::ctor_count = 0;
