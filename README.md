@@ -1,12 +1,11 @@
 # Ouraglyfi
 
-This is a micro-library for implementing various lock free producer - consumer patterns in a concurrent environment.
-Ouraglyfi has a [sister implementation](#) written in rust, so if you prefer that language consider checking it out
+This is a micro-library used for implementing various lock free patterns in a concurrent environment.
+It has a [sister implementation](https://git.cerebralab.com/george/ouraglyfi_rust) written in rust, so if you prefer that language consider checking it out
 
 
 ## FixedQueue
 This is a fixed size, lock free, wait free, thread safe queue that allows for lock free dequeuing and enqueuing on a FIFO basis.
-Add for git to recognize me.
 When construction the queue you can decide on the size (determined at runtime) and whether you want multiple producer and/or multiple consumers
 
 ### Examples of fixed queue types:
@@ -70,6 +69,8 @@ As such I have set the following deisgn goals:
 
 #### Clean Clear Code
 That means having a well documented code base that is small in size, has few dependencies and is easy to read.
+
+For example, the only fully developed module, the FreeQueue, has meaningful comments, is under 100 lines of code (with comments), composed of a single header file, easy to read and has only two dependencies, both from the std (vector and atomic)
 
 #### Modular
 That means not having a separate class for every feature. If I can add a few lines of code that are compile-time generated to an existing piece of code

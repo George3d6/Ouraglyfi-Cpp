@@ -103,13 +103,13 @@ void test_ScspFixedLockFreeQueue() {
 void test_McspFixedLockFreeQueue() {
     std::cout << "\n\n------------------------------------------------------------------\n-  Testing the Multi Consumer Multi Producer Queue   -\n"
     << "-------------------------------------------------------------------\n\n";
-    static constexpr auto nr_elements_to_add = 10000;
-    static constexpr auto queue_size = 5;
+    static constexpr auto nr_elements_to_add = 1000 * 1600;
+    static constexpr auto queue_size = 500;
     ouraglyfi::FixedQueue<TestValue, true, true> queue(queue_size);
 
     std::atomic<uint64_t> semaphor = 0;
-    constexpr size_t nr_readers = 10;
-    constexpr size_t nr_writers = 20;
+    constexpr size_t nr_readers = 20;
+    constexpr size_t nr_writers = 10;
     constexpr uint64_t nr_threads = nr_writers + nr_readers;
 
     std::vector<std::thread> reader_threads = {};
@@ -120,13 +120,13 @@ void test_McspFixedLockFreeQueue() {
             semaphor++;
             while(semaphor != nr_threads) {}
             auto has_read = 0;
-            for(uint64_t iter = 0; iter < nr_elements_to_add*nr_writers; iter++) {
+            for(uint64_t iter = 0; iter < nr_elements_to_add/nr_readers; iter++) {
                 TestValue value;
                 has_read++;
                 while(queue.dequeue(value) != ouraglyfi::ReturnCode::Done)  {
                     std::this_thread::sleep_for(std::chrono::nanoseconds(1000 * 3));
                 }
-                assert(uint64_t(std::atoi(value.info.c_str())) < nr_elements_to_add*nr_readers*nr_writers);
+                assert(uint64_t(std::atoi(value.info.c_str())) < nr_elements_to_add);
                 total.fetch_add(uint64_t(std::atoi(value.info.c_str())));
             }
             auto output = std::to_string(this_print.fetch_add(1)) + " | :This reader has dequeued: " + std::to_string(has_read) +  " times\n";
@@ -134,16 +134,16 @@ void test_McspFixedLockFreeQueue() {
         }));
     }
 
+    std::atomic<uint64_t> expected = 0;
     std::vector<std::thread> writer_threads = {};
     for(size_t n = 0; n < nr_writers; n++) {
-        std::atomic<int> my_number_is = 0;
         writer_threads.emplace_back(std::thread([&]() -> void {
-            const auto writers_numbers = my_number_is.fetch_add(1);
             static std::atomic<uint64_t> this_print = 1;
             semaphor++;
             while(semaphor != nr_threads) {}
             uint64_t has_wrote = 0;
-            for(uint64_t n = writers_numbers*nr_elements_to_add*nr_readers; n < nr_elements_to_add*nr_readers*(writers_numbers + 1); n++) {
+            for(uint64_t n = 0; n < nr_elements_to_add/nr_writers; n++) {
+            expected.fetch_add(uint64_t(n));
             while(queue.enqueue(TestValue(std::to_string(n))) != ouraglyfi::ReturnCode::Done ) {
                 std::this_thread::sleep_for(std::chrono::nanoseconds(1000 * 3));
             }
@@ -161,13 +161,9 @@ void test_McspFixedLockFreeQueue() {
         thr.join();
     }
 
-    uint64_t expected = 0;
-    for(uint64_t n = 0; n < nr_elements_to_add*nr_readers*nr_writers; n++) {
-        expected += n;
-    }
-
-    std::cout << "The sum of the dequeued elements ios: " << total  << std::endl;
-    std::cout << "The expected sum for the dequeued elements is: " << expected << std::endl;
+    std::cout << "The sum of the dequeued elements is: " << total  << std::endl;
+    std::cout << "The expected sum for the enqueued elements is: " << expected << std::endl;
+    assert(total == expected);
     TestValue::print_state();
 }
 

@@ -50,7 +50,8 @@ namespace ouraglyfi
 
         ReturnCode enqueue(const T& write) noexcept {
             if constexpr (multi_writer) {
-                if(auto free_to_go = false; !writing.compare_exchange_strong(free_to_go, true, sequential, sequential))
+                auto free_to_go = false;
+                if(!writing.compare_exchange_strong(free_to_go, true, sequential, sequential))
                     return ReturnCode::Busy;
             }
             auto write_next = next_position_in_buffer(write_position.load(relaxed));
@@ -71,7 +72,7 @@ namespace ouraglyfi
         inline size_t next_position_in_buffer(size_t pos) const noexcept {
             return pos == (internal_capacity - 1) ? 0 : (pos + 1);
         }
-        
+
         std::vector<T> buffer;
 
         //Used internally for synchronization, user can't influence these at construction
