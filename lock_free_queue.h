@@ -6,8 +6,6 @@
 #include <atomic>
 #include <vector>
 
-//Because I'm sure ouroboro is taken and it never actully catches the tail... I went to great pains to make sure of that
-//I'm also thinking of replacing it with seralibre or just libre... but I'm not in a linguistic mood today, suggestions are apreciated
 namespace ouraglyfi
 {
     //Must be used in order to figure out the status after calling various operations on the queue

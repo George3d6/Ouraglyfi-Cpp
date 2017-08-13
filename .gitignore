@@ -1,3 +1,6 @@
+immutable_list.h
+lock_free_list.h
+atomic_shared_pointer.h
 CMakeLists.txt.user
 bin
 build
