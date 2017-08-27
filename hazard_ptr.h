@@ -1,13 +1,19 @@
 /*
+
+    Just messing around atm please ignore
+
+*/
+/*
 *   Implementation for the hazard pointer used for various other structures
 */
 #pragma once
 
-#include <atomic>
-#include <list>
-
 namespace ouraglyfi
 {
+
+    #include <atomic>
+    #include <list>
+
     template<class T> class HazardPtrList
 
     template<class T>
@@ -36,6 +42,7 @@ namespace ouraglyfi
         std::atomic<T*> data_ptr;
     }
 
+    /*
     template<class T>
     class HazardPtrList {
     public:
@@ -77,4 +84,5 @@ namespace ouraglyfi
     private:
         std::list< std::atomic<HazardPtr<T> *> > hazard_pointers;
     }
+    */
 }
