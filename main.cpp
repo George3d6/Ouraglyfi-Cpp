@@ -110,7 +110,7 @@ void test_McspFixedLockFreeQueue() {
     constexpr size_t nr_readers = 20;
     constexpr size_t nr_writers = 10;
     constexpr uint64_t nr_threads = nr_writers + nr_readers;
-    static constexpr auto nr_elements_to_add = 1000 * 12 * nr_readers * nr_writers;
+    static constexpr auto nr_elements_to_add = 1000 * 60 * nr_readers * nr_writers;
 
     std::atomic<uint64_t> expected = 0;
     std::vector<std::thread> writer_threads = {};
@@ -146,7 +146,7 @@ void test_McspFixedLockFreeQueue() {
             //auto out =  "Starting reader nr: " + std::to_string(my_nr) + "\n";
             //std::cout << out;
             auto has_read = 0;
-            for(uint64_t iter = 0; iter < nr_elements_to_add/nr_readers; iter++) {
+            for(uint64_t iter = 0; iter < nr_elements_to_add/(nr_readers); iter++) {
                 TestValue value;
                 has_read++;
                 queue.peek(value);

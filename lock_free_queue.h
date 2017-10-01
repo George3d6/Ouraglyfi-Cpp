@@ -19,7 +19,7 @@ namespace ouraglyfi
     class FixedQueue {
     public:
         FixedQueue(size_t size) {
-            internal_capacity.store(size + 1);
+            internal_capacity.store(size, relaxed);
             buffer = std::vector<T>(internal_capacity.load(relaxed));
         }
 
@@ -30,17 +30,47 @@ namespace ouraglyfi
                     return ReturnCode::Busy;
             }
 
-            if(read_position.load(relaxed) == write_position.load(relaxed)) {
+            if(read_position.load(relaxed) >= write_position.load(relaxed)) {
                 if constexpr (multi_reader || variable_size)
                     reading.store(false, relaxed);
                 return ReturnCode::Empty;
             }
-            read = std::move(buffer[read_position.load(relaxed)]);
-            read_position.store(next_position_in_buffer(read_position.load(relaxed)), relaxed);
+            read = std::move(buffer[read_position.load(relaxed) % internal_capacity.load(relaxed)]);
+            read_position.fetch_add(1);
             if constexpr (multi_reader || variable_size)
                 reading.store(false, relaxed);
             return ReturnCode::Done;
         }
+
+        /*
+        template <class Container>
+        ReturnCode dequeue_bulk(Container& read, size_t to_read) noexcept {
+            if constexpr (multi_reader || variable_size) {
+                auto free_to_go = false;
+                if(!reading.compare_exchange_strong(free_to_go, true, seq_acq, seq_rel))
+                    return ReturnCode::Busy;
+            }
+
+            if( (read_position.load(relaxed)  + to_read - 1) >= write_position.load(relaxed)) {
+                if constexpr (multi_reader || variable_size)
+                    reading.store(false, relaxed);
+                return ReturnCode::Empty;
+            }
+            auto start = ((read_position - 1) % internal_capacity.load(relaxed));
+            auto end = ((read_position + to_read -1) % internal_capacity.load(relaxed));
+            auto start_it = buffer.begin() + start;
+            auto end_it = buffer.begin() + end;
+            if (std::distance(end_it, buffer.end()) < 0) {
+                std::move(start_it, buffer.end(), std::back_inserter(read));
+                start_it = buffer.end();
+            }
+            std::move(start_it, end_it, std::back_inserter(read));
+            read_position.fetch_add(to_read);
+            if constexpr (multi_reader || variable_size)
+                reading.store(false, relaxed);
+            return ReturnCode::Done;
+        }
+        */
 
         ReturnCode peek(T& read) noexcept {
             if constexpr (multi_reader || variable_size) {
@@ -49,12 +79,12 @@ namespace ouraglyfi
                     return ReturnCode::Busy;
             }
 
-            if(read_position.load(relaxed) == write_position.load(relaxed)) {
+            if(read_position.load(relaxed) >= write_position.load(relaxed)) {
                 if constexpr (multi_reader || variable_size)
                     reading.store(false, relaxed);
                 return ReturnCode::Empty;
             }
-            read = buffer[read_position.load(relaxed)];
+            read = buffer[read_position.load(relaxed)  % internal_capacity.load(relaxed)];
             if constexpr (multi_reader || variable_size)
                 reading.store(false, relaxed);
             return ReturnCode::Done;
@@ -66,48 +96,54 @@ namespace ouraglyfi
                 if(!writing.compare_exchange_strong(free_to_go, true, seq_acq, seq_rel))
                     return ReturnCode::Busy;
             }
-            auto write_next = next_position_in_buffer(write_position.load(relaxed));
             //Check if the queue is full
             if constexpr (variable_size) {
-                while(read_position.load(relaxed) == write_next) {
-                    //Spinlock-here
+                while((read_position.load(relaxed) + internal_capacity) == write_position.load(relaxed)) {
+
+                    auto new_cap = internal_capacity.load(relaxed) * 2;
+                    auto new_buffer = std::vector<T>(new_cap);
+
+                    //Spinlock-here to block all reading
                     auto free_to_go = false;
                     while(!reading.compare_exchange_strong(free_to_go, true, seq_acq, seq_rel)) { free_to_go = false; }
-                    auto new_cap = internal_capacity.load(relaxed) * 2;
-                    auto old_buffer = std::move(buffer);
-                    buffer = std::vector<T>(new_cap);
 
                     size_t n = 0;
                     size_t pos = read_position.load(relaxed);
-                    for(size_t i = 0; i < old_buffer.size(); i++) {
+                    for(size_t i = 0; i < buffer.size(); i++) {
                         if(pos == write_position.load(relaxed))
                             break;
-                        buffer.at(n) = std::move(old_buffer[pos]);
-                        pos = next_position_in_buffer(pos);
+                        new_buffer.at(n) = std::move(buffer[pos % internal_capacity.load(relaxed)]);
+                        pos += 1;
                         n++;
                     }
+
+                    buffer = std::move(new_buffer);
 
                     internal_capacity.store(new_cap, relaxed);
                     read_position.store(0, relaxed);
                     write_position.store(n, relaxed);
-                    write_next = next_position_in_buffer(write_position.load(relaxed));
                     reading.store(false, relaxed);
                 }
             }
             if constexpr (!variable_size) {
-                if(read_position.load(relaxed) == write_next) {
+                if((read_position.load(relaxed) + internal_capacity) == write_position.load(relaxed)) {
                     if constexpr (multi_writer)
                         writing.store(false, relaxed);
                     return ReturnCode::Full;
                 }
             }
-            buffer[write_position.load(relaxed)] = std::move(value);
-            write_position.store(write_next, relaxed);
+            buffer[write_position.load(relaxed) % internal_capacity.load(relaxed)] = std::move(value);
+            write_position.fetch_add(1);
             if constexpr (multi_writer)
                 writing.store(false, relaxed);
             return ReturnCode::Done;
         }
+/*
+        template <class Container>
+        ReturnCode enqueue_bulk(Container elements_to_enqueue) {
 
+        }
+*/
         size_t size() const noexcept {
             if(read_position.load(relaxed) >  write_position.load(relaxed))
                 return internal_capacity.load(relaxed) - read_position.load(relaxed) + write_position.load(relaxed);
@@ -131,11 +167,7 @@ namespace ouraglyfi
         }
 
     private:
-        size_t next_position_in_buffer(size_t pos) const noexcept {
-            return pos == (internal_capacity.load(relaxed) - 1) ? 0 : (pos + 1);
-        }
-
-        std::atomic<size_t> internal_capacity = 0;
+        std::atomic<size_t> internal_capacity;
         std::vector<T> buffer;
 
         //Used internally for synchronization, user can't influence these at construction
