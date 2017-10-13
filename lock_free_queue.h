@@ -30,13 +30,13 @@ namespace ouraglyfi
                     return ReturnCode::Busy;
             }
 
-            if(read_position.load(relaxed) >= write_position.load(relaxed)) {
+            if(read_position.load(seq_acq) >= write_position.load(seq_acq)) {
                 if constexpr (multi_reader || variable_size)
                     reading.store(false, relaxed);
                 return ReturnCode::Empty;
             }
-            read = std::move(buffer[read_position.load(relaxed) % internal_capacity.load(relaxed)]);
-            read_position.fetch_add(1);
+            read = std::move(buffer[read_position.load(seq_acq) % internal_capacity.load(seq_acq)]);
+            read_position.fetch_add(1, seq_rel);
             if constexpr (multi_reader || variable_size)
                 reading.store(false, relaxed);
             return ReturnCode::Done;
@@ -79,12 +79,12 @@ namespace ouraglyfi
                     return ReturnCode::Busy;
             }
 
-            if(read_position.load(relaxed) >= write_position.load(relaxed)) {
+            if(read_position.load(seq_acq) >= write_position.load(seq_acq)) {
                 if constexpr (multi_reader || variable_size)
                     reading.store(false, relaxed);
                 return ReturnCode::Empty;
             }
-            read = buffer[read_position.load(relaxed)  % internal_capacity.load(relaxed)];
+            read = buffer[read_position.load(seq_acq)  % internal_capacity.load(seq_acq)];
             if constexpr (multi_reader || variable_size)
                 reading.store(false, relaxed);
             return ReturnCode::Done;
@@ -98,9 +98,9 @@ namespace ouraglyfi
             }
             //Check if the queue is full
             if constexpr (variable_size) {
-                while((read_position.load(relaxed) + internal_capacity) == write_position.load(relaxed)) {
+                while((read_position.load(seq_acq) + internal_capacity.load(seq_acq)) == write_position.load(seq_acq)) {
 
-                    auto new_cap = internal_capacity.load(relaxed) * 2;
+                    auto new_cap = internal_capacity.load(seq_acq) * 2;
                     auto new_buffer = std::vector<T>(new_cap);
 
                     //Spinlock-here to block all reading
@@ -108,32 +108,32 @@ namespace ouraglyfi
                     while(!reading.compare_exchange_strong(free_to_go, true, seq_acq, seq_rel)) { free_to_go = false; }
 
                     size_t n = 0;
-                    size_t pos = read_position.load(relaxed);
+                    size_t pos = read_position.load(seq_acq);
                     for(size_t i = 0; i < buffer.size(); i++) {
-                        if(pos == write_position.load(relaxed))
+                        if(pos == write_position.load(seq_acq))
                             break;
-                        new_buffer.at(n) = std::move(buffer[pos % internal_capacity.load(relaxed)]);
+                        new_buffer.at(n) = std::move(buffer[pos % internal_capacity.load(seq_acq)]);
                         pos += 1;
                         n++;
                     }
 
                     buffer = std::move(new_buffer);
 
-                    internal_capacity.store(new_cap, relaxed);
-                    read_position.store(0, relaxed);
-                    write_position.store(n, relaxed);
+                    internal_capacity.store(new_cap, seq_rel);
+                    read_position.store(0, seq_rel);
+                    write_position.store(n, seq_rel);
                     reading.store(false, relaxed);
                 }
             }
             if constexpr (!variable_size) {
-                if((read_position.load(relaxed) + internal_capacity) == write_position.load(relaxed)) {
+                if((read_position.load(seq_acq) + internal_capacity.load(seq_acq)) == write_position.load(seq_acq)) {
                     if constexpr (multi_writer)
                         writing.store(false, relaxed);
                     return ReturnCode::Full;
                 }
             }
-            buffer[write_position.load(relaxed) % internal_capacity.load(relaxed)] = std::move(value);
-            write_position.fetch_add(1);
+            buffer[write_position.load(seq_acq) % internal_capacity.load(seq_acq)] = std::move(value);
+            write_position.fetch_add(1, seq_rel);
             if constexpr (multi_writer)
                 writing.store(false, relaxed);
             return ReturnCode::Done;
@@ -145,13 +145,13 @@ namespace ouraglyfi
         }
 */
         size_t size() const noexcept {
-            if(read_position.load(relaxed) >  write_position.load(relaxed))
-                return internal_capacity.load(relaxed) - read_position.load(relaxed) + write_position.load(relaxed);
-            return write_position.load(relaxed) - read_position.load(relaxed);
+            if(read_position.load(seq_acq) >  write_position.load(seq_acq))
+                return internal_capacity.load(seq_acq) - read_position.load(seq_acq) + write_position.load(seq_acq);
+            return write_position.load(seq_acq) - read_position.load(seq_acq);
         }
 
         size_t capacity() const noexcept {
-            return internal_capacity.load(relaxed);
+            return internal_capacity.load(seq_acq);
         }
 
         size_t max_size() const noexcept {

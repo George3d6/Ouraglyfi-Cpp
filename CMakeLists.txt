@@ -5,7 +5,7 @@ project(ccqueue)
 set(CMAKE_C_COMPILER "/usr/bin/gcc")
 set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
-SET(CMAKE_CXX_FLAGS "--std=c++17 -O2 -lpthread -fno-sanitize=all -Wall -Wpedantic -Wextra -pedantic-errors -Werror")
+SET(CMAKE_CXX_FLAGS "--std=c++17 -lpthread -fno-sanitize=all -Wall -Wpedantic -Wextra -pedantic-errors -Werror")
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Ofast")
